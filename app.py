@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, flash
+from flask import Flask, render_template, redirect, url_for, request, session
 import psycopg2
 from psycopg2 import sql
 import bcrypt  # Import bcrypt for password hashing
@@ -14,6 +14,12 @@ db_host = 'database-1.cboukk40mx5j.ap-south-1.rds.amazonaws.com'
 db_name = 'firstdb'
 db_user = 'postgres'
 db_password = 'IftwlDl4KdXHAQcvYmRD'
+
+
+conn = psycopg2.connect(db_host)
+cursor = conn.cursor()
+
+
 # Create a function to establish a database connection
 def connect_db():
     connection = psycopg2.connect(
@@ -23,6 +29,24 @@ def connect_db():
         password=db_password
     )
     return connection
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
+        result = cursor.fetchone()
+
+        if result and bcrypt.check_password_hash(result[0], password):
+            # Store the user info in session
+            session['user'] = username
+            return redirect(url_for('dashboard'))  # Redirect to the personalized page
+        else:
+            return 'Invalid credentials', 401
+
+    return render_template('login.html')
 
 # Define a route to display the form and handle form submissions
 @app.route('/', methods=['GET', 'POST'])
@@ -95,5 +119,21 @@ def login():
     return render_template('login.html')
 
 
+@app.route('/dashboard')
+def dashboard():
+    if 'user' not in session:
+        return redirect(url_for('login'))  # Redirect to login if not authenticated
+    
+    username = session['user']
+    return f"Hello {username}, welcome to your personalized page!"
+
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)  # Remove user from session
+    return redirect(url_for('login'))  # Redirect to the login page
+
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
