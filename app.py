@@ -18,8 +18,8 @@ import boto3
 import json
 
 def get_secret():
-    secret_name = "flask_email_credentials"
-    region_name = "your-region"  # Replace with your AWS region
+    secret_name = "smtp_app_pass"
+    region_name = "us-east-1"  # Replace with your AWS region
 
     # Create a Secrets Manager client
     client = boto3.client('secretsmanager', region_name=region_name)
@@ -35,7 +35,8 @@ def get_secret():
 
 # Retrieve email credentials
 credentials = get_secret()
-app.config['MAIL_USERNAME'] = credentials['email']
+app.config['MAIL_USERNAME'] = 'adarshagarwal.iitb@gmail.com'
+# app.config['MAIL_USERNAME'] = credentials['email']
 app.config['MAIL_PASSWORD'] = credentials['password']
 
 # Database connection parameters
