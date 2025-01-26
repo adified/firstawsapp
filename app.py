@@ -13,6 +13,39 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # This generates a random 24-byte string
 
+from datetime import datetime, timedelta
+import random
+
+def generate_otp(email):
+    otp = str(random.randint(100000, 999999))  # Generate a 6-digit OTP
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    # Insert the OTP into the database
+    cursor.execute(
+        "INSERT INTO otp (email, otp, created_at) VALUES (%s, %s, %s)",
+        (email, otp, datetime.utcnow())
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return otp
+
+def clean_up_expired_otps():
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    # Delete OTPs older than 30 seconds
+    cursor.execute(
+        "DELETE FROM otp WHERE created_at < %s",
+        (datetime.utcnow() - timedelta(seconds=30),)
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 
 import boto3
 import json
@@ -89,37 +122,65 @@ def register():
         conn.close()
     return render_template('register.html')
 
-def send_otp(email, otp):
-    msg = EmailMessage()
-    msg.set_content(f"Your OTP for registration is: {otp}")
-    msg['Subject'] = "Your Registration OTP"
-    msg['From'] = SENDER_EMAIL
-    msg['To'] = email
 
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(SENDER_EMAIL, EMAIL_PASSWORD)
-        server.send_message(msg)
+def send_email(to_email, message_body):
+    sender_email = "your_email@gmail.com"
+    sender_password = "your_app_password"  # Use app password if using Gmail with 2FA
 
-@app.route('/verify_otp', methods=['GET', 'POST'])
-def verify_otp():
-    if request.method == 'POST':
-        email = session['pending_user']['email']
-        entered_otp = request.form['otp']
+    # Create the email content
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = "Your OTP Verification Code"
+    msg.attach(MIMEText(message_body, 'plain'))
 
-        if otp_storage.get(email) == int(entered_otp):
-            # OTP is correct, register the user
-            user_data = session.pop('pending_user')
-            conn = connect_db()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO users (username, email, password) VALUES (%s, %s, %s)",
-                           (user_data['username'], user_data['email'], user_data['password']))
-            conn.commit()
-            conn.close()
-            flash("Registration successful! Please log in.", "success")
-            return redirect(url_for('login'))
-        else:
-            flash("Invalid OTP. Please try again.", "error")
-    return render_template('verify_otp.html')
+    try:
+        # Connect to the Gmail SMTP server
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()  # Secure the connection
+            server.login(sender_email, sender_password)  # Login
+            server.send_message(msg)  # Send the email
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+@app.route('/send_otp', methods=['POST'])
+def send_otp():
+    email = request.form['email']
+    otp = generate_otp(email)
+
+    # Use send_email to send the OTP
+    send_email(email, f"Your OTP is {otp}")
+    return "OTP sent successfully!"
+
+
+def verify_otp(email, entered_otp):
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    # Retrieve the OTP and creation time from the database
+    cursor.execute(
+        "SELECT otp, created_at FROM otp WHERE email = %s ORDER BY created_at DESC LIMIT 1",
+        (email,)
+    )
+    result = cursor.fetchone()
+
+    if result:
+        stored_otp, created_at = result
+        # Check if the OTP matches and is within the 30-second expiry
+        if stored_otp == entered_otp and (datetime.utcnow() - created_at).total_seconds() <= 30:
+            return True
+
+    return False
+
+@app.route('/verify_otp', methods=['POST'])
+def verify_otp_route():
+    email = request.form['email']
+    entered_otp = request.form['otp']
+
+    if verify_otp(email, entered_otp):
+        return "OTP verified successfully!"
+    else:
+        return "Invalid or expired OTP."
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
