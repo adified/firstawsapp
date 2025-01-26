@@ -37,7 +37,7 @@ def get_secret():
 credentials = get_secret()
 app.config['MAIL_USERNAME'] = 'adarshagarwal.iitb@gmail.com'
 # app.config['MAIL_USERNAME'] = credentials['email']
-app.config['MAIL_PASSWORD'] = credentials['password']
+app.config['MAIL_PASSWORD'] = credentials['smtp_pass']
 
 # Database connection parameters
 db_host = 'database-1.cboukk40mx5j.ap-south-1.rds.amazonaws.com'
