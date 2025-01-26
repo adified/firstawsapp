@@ -1,11 +1,10 @@
-from flask import Flask, render_template, redirect, url_for, request, session, flash
+from flask import Flask, render_template, redirect, url_for, request, session
 import psycopg2
 from psycopg2 import sql
 import bcrypt  # Import bcrypt for password hashing
 import os
 
 # Set secret key to a random value
-
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # This generates a random 24-byte string
 
@@ -14,16 +13,6 @@ db_host = 'database-1.cboukk40mx5j.ap-south-1.rds.amazonaws.com'
 db_name = 'firstdb'
 db_user = 'postgres'
 db_password = 'IftwlDl4KdXHAQcvYmRD'
-
-
-# conn = psycopg2.connect(db_host)
-conn = psycopg2.connect(
-    host=db_host,
-    database=db_name,
-    user=db_user,
-    password=db_password
-)
-cursor = conn.cursor()
 
 
 # Create a function to establish a database connection
@@ -36,46 +25,6 @@ def connect_db():
     )
     return connection
 
-# Define a route to display the form and handle form submissions
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        # Get the form data
-        username = request.form['username']
-        password = request.form['password']
-        
-        # Hash the password before storing it
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-
-        # Connect to the database
-        conn = connect_db()
-        cursor = conn.cursor()
-
-        # Check if the username already exists
-        cursor.execute(
-            sql.SQL("SELECT username FROM users WHERE username = %s"),
-            [username]
-        )
-        existing_user = cursor.fetchone()
-
-        if existing_user:
-            flash("Username already exists. Please choose another one.", "error")
-        else:
-            # Insert the data into the database (with hashed password)
-            cursor.execute(
-                sql.SQL("INSERT INTO users (username, password) VALUES (%s, %s)"),
-                [username, hashed_password.decode('utf-8')]  # Store as string
-            )
-
-            # Commit the transaction and close the connection
-            conn.commit()
-            flash("User added successfully!", "success")
-
-        # Close the connection
-        cursor.close()
-        conn.close()
-
-    return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -98,9 +47,11 @@ def login():
 
         # Check if the password is correct
         if stored_password_hash and bcrypt.checkpw(password.encode('utf-8'), stored_password_hash[0].encode('utf-8')):
+            # Store user in session
+            session['user'] = username
             cursor.close()
             conn.close()
-            return "Login successful!"
+            return redirect(url_for('dashboard'))  # Redirect to dashboard on success
         else:
             cursor.close()
             conn.close()
@@ -109,21 +60,26 @@ def login():
     return render_template('login.html')
 
 
+@app.route('/')
+def index():
+    # This is where the user registers (same as before)
+    return render_template('index.html')
+
 
 @app.route('/dashboard')
 def dashboard():
     if 'user' not in session:
         return redirect(url_for('login'))  # Redirect to login if not authenticated
-    
+
     username = session['user']
-    return f"Hello {username}, welcome to your personalized page!"
+    return render_template('dashboard.html', username=username)
 
 
 @app.route('/logout')
 def logout():
-    session.pop('user', None)  # Remove user from session
-    return redirect(url_for('login'))  # Redirect to the login page
-
+    # Remove the user from the session to log them out
+    session.pop('user', None)
+    return redirect(url_for('login'))  # Redirect to login page after logout
 
 
 if __name__ == '__main__':
