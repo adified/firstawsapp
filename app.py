@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, session
+from flask import Flask, render_template, redirect, url_for, request, session, flash
 import psycopg2
 from psycopg2 import sql
 import bcrypt  # Import bcrypt for password hashing
