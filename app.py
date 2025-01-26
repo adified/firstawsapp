@@ -6,7 +6,7 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import boto3
 import json
 
@@ -24,7 +24,7 @@ def connect_db():
     )
 
 # Function to generate OTP and store it in the database
-def generate_otp(email):
+def generate_otp(email, username):
     otp = str(random.randint(100000, 999999))  # Generate a 6-digit OTP
     conn = connect_db()
     cursor = conn.cursor()
@@ -32,7 +32,7 @@ def generate_otp(email):
     # Insert the OTP into the database
     cursor.execute(
         "INSERT INTO otp (email, otp, created_at) VALUES (%s, %s, %s)",
-        (email, otp, datetime.utcnow())
+        (username, otp, datetime.now(timezone.utc))
     )
 
     conn.commit()
@@ -48,7 +48,7 @@ def clean_up_expired_otps():
     # Delete OTPs older than 30 seconds
     cursor.execute(
         "DELETE FROM otp WHERE created_at < %s",
-        (datetime.utcnow() - timedelta(seconds=30),)
+        (datetime.now(timezone.utc) - timedelta(seconds=30),)
     )
 
     conn.commit()
@@ -113,14 +113,14 @@ def register():
         cursor = conn.cursor()
 
         # Check if username or email already exists
-        cursor.execute("SELECT username, email FROM users WHERE username = %s OR email = %s", (username, email))
+        cursor.execute("SELECT username FROM users WHERE username = %s ", (username, ))
         user_exists = cursor.fetchone()
 
         if user_exists:
             flash("Username or email already exists.", "error")
         else:
             # Generate OTP and send to email
-            otp = generate_otp(email)
+            otp = generate_otp(email, username)
             send_email(email, f"Your OTP is {otp}")
             session['pending_user'] = {'username': username, 'email': email, 'password': hashed_password.decode('utf-8')}
             flash("OTP sent to your email. Please verify.", "info")
@@ -131,50 +131,91 @@ def register():
 
     return render_template('register.html')
 
-# Route for OTP verification
 @app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
+    if 'pending_user' not in session:
+        flash("No registration in progress. Please start the registration process.", "error")
+        return redirect(url_for('register'))  # Redirect to registration if pending_user is not set
+
     if request.method == 'POST':
         email = session['pending_user']['email']
+        username = session['pending_user']['username']
         entered_otp = request.form['otp']
 
         conn = connect_db()
         cursor = conn.cursor()
 
         # Retrieve OTP from the database
-        cursor.execute("SELECT otp, created_at FROM otp WHERE email = %s ORDER BY created_at DESC LIMIT 1", (email,))
+        cursor.execute("SELECT otp, created_at FROM otp WHERE email = %s ORDER BY created_at DESC LIMIT 1", (username,))
         result = cursor.fetchone()
 
         if result:
             stored_otp, created_at = result
-            if stored_otp == int(entered_otp) and (datetime.utcnow() - created_at).total_seconds() <= 30:
-                # OTP is valid, create user in the database
-                pending_user = session.pop('pending_user')
-                cursor.execute(
-                    "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)",
-                    (pending_user['username'], pending_user['email'], pending_user['password'])
-                )
-                conn.commit()
-                flash("Registration successful! You can now log in.", "success")
-                return redirect(url_for('login'))
+            print(type(stored_otp), type(entered_otp))
+            print((stored_otp),(entered_otp))
+            print((stored_otp) == (entered_otp))
+            if stored_otp == entered_otp:
+                # Ensure created_at is timezone-aware before comparison
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)  # Make it timezone-aware if it's naive
+
+                if (datetime.now(timezone.utc) - created_at).total_seconds() <= 30:
+                    # OTP is valid, proceed with user creation
+                    pending_user = session.pop('pending_user')
+                    cursor.execute(
+                        "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)",
+                        (pending_user['username'], pending_user['email'], pending_user['password'])
+                    )
+                    conn.commit()
+
+                    flash("Registration successful! You can now log in.", "success")
+                    return redirect(url_for('login'))
+                else:
+                    flash("Invalid or expired OTP.", "error")
             else:
-                flash("Invalid or expired OTP.", "error")
-        else:
-            flash("No OTP found. Please try again.", "error")
+                flash("Invalid OTP.", "error")
+
 
         cursor.close()
         conn.close()
 
-    return render_template('verify_otp.html')
+    return render_template('verify_otp.html')  # Ensure you're rendering the OTP verification page
 
-# Route for login (for testing purposes)
+# Login route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        conn = connect_db()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
+        stored_password_hash = cursor.fetchone()
+
+        if stored_password_hash and bcrypt.checkpw(password.encode('utf-8'), stored_password_hash[0].encode('utf-8')):
+            session['user'] = username
+            return redirect(url_for('dashboard'))
+
+        flash("Invalid credentials. Please try again.", "error")
+        cursor.close()
+        conn.close()
+
     return render_template('login.html')
 
-# if __name__ == '__main__':
-#     app.run(debug=True)
+@app.route('/dashboard')
+def dashboard():
+    if 'user' not in session:
+        return redirect(url_for('login'))  # Redirect to login if not authenticated
+    
+    username = session['user']
+    return f"Hello {username}, welcome to your personalized page!"
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True)
+
+
+# if __name__ == '__main__':
+#     app.run(host='0.0.0.0', port=5000)
