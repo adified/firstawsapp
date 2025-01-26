@@ -9,6 +9,9 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
 import boto3
 import json
+import dotenv
+
+dotenv()
 
 # Set secret key to a random value
 app = Flask(__name__)
@@ -20,7 +23,7 @@ def connect_db():
         host="database-1.cboukk40mx5j.ap-south-1.rds.amazonaws.com",
         database="firstdb",
         user="postgres",
-        password="IftwlDl4KdXHAQcvYmRD"
+        password=os.getenv('Master_password')
     )
 
 # Function to generate OTP and store it in the database
