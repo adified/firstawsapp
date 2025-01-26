@@ -1,7 +1,7 @@
-from flask import Flask, render_template, redirect, url_for, request, session
+from flask import Flask, render_template, redirect, url_for, request, session, flash
 import psycopg2
 from psycopg2 import sql
-import bcrypt  # Import bcrypt for password hashing
+import bcrypt
 import os
 
 # Set secret key to a random value
@@ -60,10 +60,43 @@ def login():
     return render_template('login.html')
 
 
-@app.route('/')
-def index():
-    # This is where the user registers (same as before)
-    return render_template('index.html')
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        # Get the form data
+        username = request.form['username']
+        password = request.form['password']
+
+        # Connect to the database
+        conn = connect_db()
+        cursor = conn.cursor()
+
+        # Hash the password before storing it
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+        # Check if the username already exists
+        cursor.execute(
+            sql.SQL("SELECT username FROM users WHERE username = %s"),
+            [username]
+        )
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            flash("Username already exists. Please choose another one.", "error")
+        else:
+            # Insert the data into the database (with hashed password)
+            cursor.execute(
+                sql.SQL("INSERT INTO users (username, password) VALUES (%s, %s)"),
+                [username, hashed_password.decode('utf-8')]  # Store as string
+            )
+            conn.commit()
+            flash("User added successfully!", "success")
+
+        # Close the connection
+        cursor.close()
+        conn.close()
+
+    return render_template('register.html')
 
 
 @app.route('/dashboard')
