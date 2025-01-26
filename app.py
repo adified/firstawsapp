@@ -16,7 +16,13 @@ db_user = 'postgres'
 db_password = 'IftwlDl4KdXHAQcvYmRD'
 
 
-conn = psycopg2.connect(db_host)
+# conn = psycopg2.connect(db_host)
+conn = psycopg2.connect(
+    host=db_host,
+    database=db_name,
+    user=db_user,
+    password=db_password
+)
 cursor = conn.cursor()
 
 
@@ -29,24 +35,6 @@ def connect_db():
         password=db_password
     )
     return connection
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
-        result = cursor.fetchone()
-
-        if result and bcrypt.check_password_hash(result[0], password):
-            # Store the user info in session
-            session['user'] = username
-            return redirect(url_for('dashboard'))  # Redirect to the personalized page
-        else:
-            return 'Invalid credentials', 401
-
-    return render_template('login.html')
 
 # Define a route to display the form and handle form submissions
 @app.route('/', methods=['GET', 'POST'])
@@ -108,15 +96,18 @@ def login():
 
         stored_password_hash = cursor.fetchone()
 
+        # Check if the password is correct
         if stored_password_hash and bcrypt.checkpw(password.encode('utf-8'), stored_password_hash[0].encode('utf-8')):
+            cursor.close()
+            conn.close()
             return "Login successful!"
         else:
+            cursor.close()
+            conn.close()
             return "Invalid credentials!"
 
-        cursor.close()
-        conn.close()
-    
     return render_template('login.html')
+
 
 
 @app.route('/dashboard')
