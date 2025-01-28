@@ -11,13 +11,13 @@ import boto3
 import json
 import dotenv
 
-dotenv()
+# dotenv()
 
 # Set secret key to a random value
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # This generates a random 24-byte string
 
-def get_rds_secret(secret_name, region_name="us-east-1"):
+def get_rds_secret(secret_name, region_name="ap-south-1"):
     # Create a Secrets Manager client
     client = boto3.client('secretsmanager', region_name=region_name)
 
