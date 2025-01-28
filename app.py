@@ -9,13 +9,20 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
 import boto3
 import json
-# import dotenv
-
-# dotenv()
 
 # Set secret key to a random value
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # This generates a random 24-byte string
+
+from flask_session import Session
+from redis import Redis
+
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_KEY_PREFIX'] = 'your_app_name:'
+app.config['SESSION_REDIS'] = Redis(host='127.0.0.1', port=6379)
+Session(app)
 
 def get_rds_secret(secret_name, region_name="ap-south-1"):
     # Create a Secrets Manager client
@@ -234,9 +241,9 @@ def dashboard():
     return f"Hello {username}, welcome to your personalized page!"
 
 
-# if __name__ == '__main__':
-#     app.run(debug=True)
-
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True)
+
+
+# if __name__ == '__main__':
+#     app.run(host='0.0.0.0', port=5000)
