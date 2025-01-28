@@ -17,13 +17,31 @@ dotenv()
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # This generates a random 24-byte string
 
+def get_rds_secret(secret_name, region_name="us-east-1"):
+    # Create a Secrets Manager client
+    client = boto3.client('secretsmanager', region_name=region_name)
+
+    try:
+        # Retrieve the secret value
+        response = client.get_secret_value(SecretId=secret_name)
+        secret = response['SecretString']
+        return json.loads(secret)
+    except Exception as e:
+        print(f"Error retrieving secret: {e}")
+        return None
+
+secret = get_rds_secret("rds_firstapp")
+if secret:
+    db_password = secret['password']  # Replace 'password' with the key used in your secret
+    db_username = secret['username']  # Similarly for username
+
 # Function to connect to the database
 def connect_db():
     return psycopg2.connect(
         host="database-1.cboukk40mx5j.ap-south-1.rds.amazonaws.com",
         database="firstdb",
-        user="postgres",
-        password=os.getenv('Master_password')
+        user=db_username,
+        password=db_password
     )
 
 # Function to generate OTP and store it in the database
@@ -216,9 +234,9 @@ def dashboard():
     return f"Hello {username}, welcome to your personalized page!"
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
-
-
 # if __name__ == '__main__':
-#     app.run(host='0.0.0.0', port=5000)
+#     app.run(debug=True)
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
