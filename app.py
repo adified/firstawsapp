@@ -9,10 +9,14 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
 import boto3
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Set secret key to a random value
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # This generates a random 24-byte string
+# app.secret_key = os.urandom(24)  # This generates a random 24-byte string
+app.secret_key = os.getenv('app_code')  # This generates a random 24-byte string
 
 from flask_session import Session
 from redis import Redis
