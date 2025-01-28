@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, timezone
 import boto3
 import json
-import dotenv
+# import dotenv
 
 # dotenv()
 
