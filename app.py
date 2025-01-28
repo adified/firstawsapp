@@ -52,7 +52,7 @@ def generate_otp(email, username):
 
     # Insert the OTP into the database
     cursor.execute(
-        "INSERT INTO otp (email, otp, created_at) VALUES (%s, %s, %s)",
+        "INSERT INTO otp (username, otp, created_at) VALUES (%s, %s, %s)",
         (username, otp, datetime.now(timezone.utc))
     )
 
@@ -167,7 +167,7 @@ def verify_otp():
         cursor = conn.cursor()
 
         # Retrieve OTP from the database
-        cursor.execute("SELECT otp, created_at FROM otp WHERE email = %s ORDER BY created_at DESC LIMIT 1", (username,))
+        cursor.execute("SELECT otp, created_at FROM otp WHERE username = %s ORDER BY created_at DESC LIMIT 1", (username,))
         result = cursor.fetchone()
 
         if result:
