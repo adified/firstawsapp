@@ -25,7 +25,7 @@ app.config['SESSION_TYPE'] = 'redis'
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_USE_SIGNER'] = True
 app.config['SESSION_KEY_PREFIX'] = 'your_app_name:'
-app.config['SESSION_REDIS'] = Redis(host='127.0.0.1', port=6379)
+app.config['SESSION_REDIS'] = Redis(host='localhost', port=6379)
 Session(app)
 
 def get_rds_secret(secret_name, region_name="ap-south-1"):
